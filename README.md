@@ -1,241 +1,346 @@
 # tp-elastic-search
 
-## Partie 1 : Installation et configuration du cluser Redis
+## Partie 1 : Installation et Configuration du Cluster Elasticsearch
 
-### 1. Installation de Redis et configuration du cluser
+### 1. Installation de Elasticsearch et configuration du cluster
 
-J'ai décidé d'utiliser Docker pour installer Redis. J'ai donc créé un fichier `docker-compose.yml` pour définir le service Redis. Voici le contenu du fichier :
+J'ai décidé d'utiliser Docker pour installer Elasticsearch. J'ai donc créé un fichier `docker-compose.yml` pour définir les services Elasticsearch. Voici le contenu du fichier :
 
 ```yaml
 version: '3.8'
-
 services:
-  redis-node-1:
-    image: redis:latest
-    container_name: redis-node-1
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
-      - redis-node-1-data:/data
+      - esdata1:/usr/share/elasticsearch/data
     ports:
-      - "6379:6379"
+      - 9200:9200
     networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.2
-
-  redis-node-2:
-    image: redis:latest
-    container_name: redis-node-2
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+      - elasticsearch-network
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    container_name: es02
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
-      - redis-node-2-data:/data
-    ports:
-      - "6380:6379"
+      - esdata2:/usr/share/elasticsearch/data
     networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.3
-
-  redis-node-3:
-    image: redis:latest
-    container_name: redis-node-3
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
+      - elasticsearch-network
+  es03:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    container_name: es03
+    environment:
+      - node.name=es03
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
-      - redis-node-3-data:/data
-    ports:
-      - "6381:6379"
+      - esdata3:/usr/share/elasticsearch/data
     networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.4
-            
-  redis-node-4:
-    image: redis:latest
-    container_name: redis-node-4
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
-    volumes:
-      - redis-node-4-data:/data
-    ports:
-      - "6382:6379"
-    networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.5
-            
-  redis-node-5:
-    image: redis:latest
-    container_name: redis-node-5
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
-    volumes:
-      - redis-node-5-data:/data
-    ports:
-      - "6383:6379"
-    networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.6
-  
-  redis-node-6:
-    image: redis:latest
-    container_name: redis-node-6
-    command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf", "--cluster-node-timeout", "5000", "--appendonly", "yes"]
-    volumes:
-      - redis-node-6-data:/data
-    ports:
-      - "6384:6379"
-    networks:
-        redis-cluster:
-            ipv4_address: 172.28.0.7
-
-networks:
-  redis-cluster:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
-
+      - elasticsearch-network
 volumes:
-    redis-node-1-data:
-    redis-node-2-data:
-    redis-node-3-data:
-    redis-node-4-data:
-    redis-node-5-data:
-    redis-node-6-data:
+  esdata1:
+    driver: local
+  esdata2:
+    driver: local
+  esdata3:
+    driver: local
+networks:
+  elasticsearch-network:
 ```
 
-On définit trois services Redis, chacun avec une adresse IP différente. On définit également un réseau `redis-cluster` pour que les services puissent communiquer entre eux.
-On démarre ensuite les services avec la commande `docker-compose up`.
+On définit les services Elasticsearch.
+- **image** : On utilise l'image Docker officielle d'Elasticsearch.
+- **container_name** : On définit le nom du conteneur.
+- **environment** : On définit les variables d'environnement pour chaque service (nom du noeud, nom du cluster, hôtes de découverte, noeuds maîtres initiaux, mémoire de démarrage, options Java).
+- **ulimits** : On définit les limites de mémoire pour chaque service.
+- **volumes** : On définit les volumes pour stocker les données Elasticsearch.
+- **ports** : On définit les ports d'écoute pour Elasticsearch.
+- **networks** : On définit le réseau pour les services. (On définit un réseau `elasticsearch-network` pour que les services puissent communiquer entre eux.)
 
-### 2. Démarrage du cluser Redis
+On démarre ensuite les services avec la commande `docker-compose up -d --build`.
 
-On accède à l'un des conteneurs Docker pour initialiser le cluster Redis avec la commande `docker exec -it redis-node-1 redis-cli --cluster create 172.28.0.2:6379 172.28.0.3:6379 172.28.0.4:6379 172.28.0.5:6379 172.28.0.6:6379 172.28.0.7:6379 --cluster-replicas 1`.
+### 2. Vérification de l'état du cluster Elasticsearch
 
-On peut vérifier que le cluster a bien été créé avec la commande `docker exec -it redis-node-1 redis-cli cluster nodes`.
+On peut vérifier l'état du cluster Elasticsearch avec la commande `curl -X GET "localhost:9200/_cluster/health?pretty"`. On obtient la liste des noeuds du cluster avec leur adresse IP, leur nom, leur rôle, leur ID, leur version, leur type, leur port, leur adresse IP de transport et leur adresse IP de HTTP.
 
-## Partie 2 : Premiers pas avec le cluster Redis
+## Partie 2 : Premiers pas avec le Cluster Elasticsearch
 
-### 1. Injection de données
+### 1. Créer un index nommé `test01`
 
-Insertion String :
-```shell
-docker exec -it redis-node-1 redis-cli -c SET keyString1 "valeur de key1"
+```bash
+curl -X PUT "localhost:9200/test01\
 ```
-Cette commande permet d'insérer une clé `keyString1` avec la valeur `valeur de key1` dans le cluster Redis.
-_`docker exec -it redis-node-1 redis-cli` permet d'exécuter une commande redis dans le conteneur redis-node-1 en mode intéractif._
-_Le flag `-c` permet de spécifier que l'on veut utiliser le mode cluster et gérer la répartition des données automatiquement._
-> La commande renvoie : `OK`
 
-Insertion Lists : 
-```shell
-docker exec -it redis-node-1 redis-cli -c LPUSH keyList1 "valeur1" "valeur2" "valeur3"
+### 2. Vérifier que cet index est maintenant présent
+
+```bash
+curl -X GET "localhost:9200/_cat/indices?v"
 ```
-Cette commande permet d'insérer une liste `keyList1` avec les valeurs `valeur1`, `valeur2` et `valeur3` dans le cluster Redis.
-> La commande renvoie : `(integer) 3`
 
-Insertion Sets :
-```shell
-docker exec -it redis-node-1 redis-cli -c SADD keySet1 "valeurSet1" "valeurSet2" "valeurSet3"
+### 3. Créer un document dans cet index
+
+On crée un document dans l'index `test01` avec la commande suivante :
+```bash
+{
+  "titre": "Premier document",
+  "description": "C'est la première fois que je crée un document dans ES.",
+  "quantité": 12,
+  "date_creation": "10-05-2024"
+}
 ```
-Cette commande permet d'insérer un set `keySet1` avec les valeurs `valeurSet1`, `valeurSet2` et `valeurSet3` dans le cluster Redis.
-> La commande renvoie : `(integer) 3`
 
-Insertion Hashes :
-```shell
-docker exec -it redis-node-1 redis-cli -c HMSET keyHash1 field1 "valeurHash1" field2 "valeurHash2" field3 "valeurHash3"
+```bash
+curl -X POST "localhost:9200/test01/_doc/1" -H 'Content-Type: application/json' -d'
+{
+  "titre": "Premier document",
+  "description": "C\'est la première fois que je crée un document dans ES.",
+  "quantité": 12,
+  "date_creation": "10-05-2024"
+}'
 ```
-Cette commande permet d'insérer un hash `keyHash1` avec les champs `field1`, `field2` et `field3` et les valeurs `valeurHash1`, `valeurHash2` et `valeurHash3` dans le cluster Redis.
-> La commande renvoie : `OK`
 
-Insertion Sorted Sets :
-```shell
-docker exec -it redis-node-1 redis-cli -c ZADD keySortedSet1 1 "valeurSorted1" 2 "valeurSorted2" 3 "valeurSorted3"
+### 4. Afficher ce document
+
+```bash
+curl -X GET "localhost:9200/test01/_doc/1"
 ```
-Cette commande permet d'insérer un sorted set `keySortedSet1` avec les valeurs `valeurSorted1`, `valeurSorted2` et `valeurSorted3` dans le cluster Redis.
-> La commande renvoie : `(integer) 3`
 
-### 2. Requêtage des données
+### 5. Afficher quel mapping a été appliqué par défaut
 
-Requête String :
-```shell
-docker exec -it redis-node-1 redis-cli -c GET keyString1
+```bash
+curl -X GET "localhost:9200/test01/_mapping"
 ```
-Cette commande permet de récupérer la valeur de la clé `keyString1`.
-> La commande renvoie : `"valeur de key1"`
 
-Requête Lists :
-```shell
-docker exec -it redis-node-1 redis-cli -c LRANGE keyList1 0 -1
+### 6. Est-il optimal ?
+
+Le mapping appliqué par défaut n'est pas optimal. En effet, le champ `date_creation` est considéré comme un champ de type `text` alors qu'il devrait être de type `date`. De plus, le champ `quantité` est considéré comme un champ de type `long` alors qu'il devrait être de type `integer`.
+
+### 7. Modifier le mapping pour le champ date_creation
+
+Pour adapter le mapping du champ date_creation, nous devons supprimer l'index et le recréer avec le bon mapping, car la modification du mapping d'un champ existant n'est pas permise directement.
+
+```bash
+curl -X DELETE "localhost:9200/test01"
 ```
-Cette commande permet de récupérer toutes les valeurs de la liste `keyList1` (de l'index 0 à la fin).
-> La commande renvoie :
-> `1) "valeur3"`
-> `2) "valeur2"`
-> `3) "valeur1"`
 
-Requête Sets :
-```shell
-docker exec -it redis-node-1 redis-cli -c SMEMBERS keySet1
+Et on recrée l'index `test01` avec le bon mapping pour le champ `date_creation` :
+
+```bash
+curl -X PUT "localhost:9200/test01" -H 'Content-Type: application/json' -d'
+{
+  "mappings": {
+    "properties": {
+      "date_creation": {
+        "type": "date",
+        "format": "dd-MM-yyyy"
+      }
+    }
+  }
+}'
 ```
-Cette commande permet de récupérer toutes les valeurs du set `keySet1`.
-> La commande renvoie :
-> `1) "valeurSet3"`
-> `2) "valeurSet1"`
-> `3) "valeurSet2"`
 
-Requête Hashes :
-```shell
-docker exec -it redis-node-1 redis-cli -c HGETALL keyHash1
+```bash
+curl -X POST "localhost:9200/test01/_doc/1" -H 'Content-Type: application/json' -d'
+{
+  "titre": "Premier document",
+  "description": "C\'est la première fois que je crée un document dans ES.",
+  "quantité": 12,
+  "date_creation": "10-05-2024"
+}'
 ```
-Cette commande permet de récupérer tous les champs et valeurs du hash `keyHash1`.
-> La commande renvoie :
-> `1) "field1"`
-> `2) "valeurHash1"`
-> `3) "field2"`
-> `4) "valeurHash2"`
-> `5) "field3"`
-> `6) "valeurHash3"`
 
-Requête Sorted Sets :
-```shell
-docker exec -it redis-node-1 redis-cli -c ZRANGE keySortedSet1 0 -1
+### 8. Créer un nouvel index test02 avec un mapping adapté
+
+```bash
+curl -X PUT "localhost:9200/test02" -H 'Content-Type: application/json' -d'
+{
+  "mappings": {
+    "properties": {
+      "titre": { "type": "text" },
+      "description": { "type": "text" },
+      "quantité": { "type": "integer" },
+      "date_creation": {
+        "type": "date",
+        "format": "dd-MM-yyyy"
+      }
+    }
+  }
+}'
 ```
-Cette commande permet de récupérer toutes les valeurs du sorted set `keySortedSet1`.
-> La commande renvoie :
-> `1) "valeurSorted1"`
-> `2) "valeurSorted2"`
-> `3) "valeurSorted3"`
 
-## Partie 3 : Intégration de Redis dans un projet
+### 9. Analyser le texte de la description
 
-### 1. Création d'une application d'annuaire en Python
+```bash
+curl -X GET "localhost:9200/test02/_analyze" -H 'Content-Type: application/json' -d'
+{
+  "text": "C\'est la première fois que je crée un document dans ES."
+}'
+```
 
-On commence par installer le package `redis` avec la commande `pip install redis`.
-La connection à Redis en localhost se fait avec la commande `redis.Redis(host='localhost', port=6379, db=0)`.
+### 10. Créer un index `test03` avec différents traitements de `description`
 
-_Le code entier est disponible dans le fichier `app.py`._
+```bash
+curl -X PUT "localhost:9200/test03" -H 'Content-Type: application/json' -d'
+{
+  "mappings": {
+    "properties": {
+      "titre": { "type": "text" },
+      "description": {
+        "type": "text",
+        "fields": {
+          "raw": { "type": "keyword" },
+          "no_stopwords": {
+            "type": "text",
+            "analyzer": "stop"
+          }
+        }
+      },
+      "quantité": { "type": "integer" },
+      "date_creation": {
+        "type": "date",
+        "format": "dd-MM-yyyy"
+      }
+    }
+  }
+}'
+```
 
-### 2. Tests de l'application
+### 11. Importer plusieurs documents en une seule requête
 
-On peut tester l'application avec la commande `python app.py`.
+On utilise le format de requête `bulk` pour importer plusieurs documents en une seule requête :
 
-## Partie 4 : Introspection sur l'intégration de Redis
+```bash
+curl -X POST "localhost:9200/test03/_bulk" -H 'Content-Type: application/json' -d'
+{ "index": { "_id": "1" } }
+{ "titre": "Document 1", "description": "C\'est le premier document.", "quantité": 10, "date_creation": "01-01-2024" }
+{ "index": { "_id": "2" } }
+{ "titre": "Document 2", "description": "Voici le second document.", "quantité": 20, "date_creation": "02-02-2024" }
+{ "index": { "_id": "3" } }
+{ "titre": "Document 3", "description": "Un autre document pour ES.", "quantité": 30, "date_creation": "03-03-2024" }
+{ "index": { "_id": "4" } }
+{ "titre": "Document 4", "description": "Le dernier document de la série.", "quantité": 40, "date_creation": "04-04-2024" }
+'
+```
 
-L'intégration de Redis peut apporter des avantages significatifs à divers types de projets, en particulier ceux nécessitant une manipulation rapide de données, une mise en cache efficace, une scalabilité horizontale et une haute disponibilité. Voici une analyse détaillée des avantages potentiels de l'intégration de Redis dans différents types de projets :
+## Partie 3 : Intégration de Kibana
 
-1. **Applications Web** :
-   - **Sessions Utilisateur** : Stocker les sessions utilisateur en mémoire avec Redis permet d'améliorer les performances en réduisant les temps de chargement et les temps de réponse.
-   - **Mise en Cache** : Utiliser Redis comme cache pour les requêtes fréquemment effectuées peut réduire la charge sur la base de données principale et accélérer les temps de réponse pour les utilisateurs.
+### 1. Intégration des Données Factices Fournies
 
-2. **Applications de Jeux Vidéo en Temps Réel** :
-   - **Gestion de l'État du Jeu** : Stocker l'état du jeu et les données de session en mémoire avec Redis permet une communication rapide entre les différents serveurs et joueurs, améliorant ainsi la fluidité et la réactivité du jeu.
-   - **Classements et Statistiques** : Maintenir les classements et les statistiques des joueurs en mémoire avec Redis permet des mises à jour en temps réel et une analyse rapide des données de jeu.
+Supposons que les données factices fournies sont stockées dans un fichier `data.json`. On peut les importer dans Elasticsearch avec la commande suivante :
 
-3. **Applications de Commerce Électronique** :
-   - **Paniers d'Achat** : Stocker temporairement les paniers d'achat en mémoire avec Redis permet de garantir une expérience utilisateur fluide et rapide, tout en assurant la persistance des données en cas de panne.
-   - **Gestion des Stocks** : Utiliser Redis pour gérer les informations sur le stock et les niveaux de produits peut améliorer la gestion des commandes en temps réel et prévenir les situations de survente.
+```bash
+curl -X POST "localhost:9200/_bulk" -H 'Content-Type: application/json' --data-binary "@dataset1.json"
+curl -X POST "localhost:9200/_bulk" -H 'Content-Type: application/json' --data-binary "@dataset2.json"
+curl -X POST "localhost:9200/_bulk" -H 'Content-Type: application/json' --data-binary "@dataset3.json"
+```
+On utilise `curl` pour importer les données dans Elasticsearch.
 
-4. **Applications de Traitement de Données en Temps Réel** :
-   - **File d'Attente de Messages** : Utiliser Redis comme système de messagerie ou de file d'attente pour le traitement asynchrone des données peut réduire les goulots d'étranglement et améliorer la scalabilité du système.
-   - **Analyse en Temps Réel** : Stocker les données d'analyse en mémoire avec Redis permet des calculs rapides et en temps réel sur de grands ensembles de données, facilitant ainsi la prise de décision en temps opportun.
+### 2. Utilisation de Kibana pour les Requêtes
 
-5. **Applications IoT (Internet des Objets)** :
-   - **Gestion des Dispositifs** : Utiliser Redis pour gérer les connexions et l'état des dispositifs IoT permet une communication rapide et fiable entre les appareils et la plateforme IoT.
-   - **Traitement des Flux de Données** : Stocker et traiter les flux de données générés par les appareils IoT en mémoire avec Redis permet des analyses en temps réel et des actions basées sur les événements.
+On accède à Kibana en allant sur `http://localhost:5601` dans un navigateur web. On peut ensuite effectuer des requêtes sur les données importées.
+On crée un index pattern qui correspond aux données importées (par exemple `dataset*`) et on peut ensuite effectuer des requêtes sur ces données.
 
-En résumé, l'intégration de Redis peut fournir des avantages significatifs en termes de performances, de scalabilité, de réactivité et de disponibilité pour une large gamme de projets, allant des applications web aux systèmes IoT en passant par les jeux vidéo en temps réel et les applications de commerce électronique. Cependant, il est crucial de bien comprendre les besoins spécifiques du projet et de planifier soigneusement l'intégration de Redis pour maximiser ses avantages.
+Lister les vols dont le prix moyen est entre 300€ et 450€
+```bash
+GET /flights/_search
+{
+  "query": {
+    "range": {
+      "average_price": {
+        "gte": 300,
+        "lte": 450
+      }
+    }
+  }
+}
+```
+
+Lister les vols annulés
+```bash
+GET /flights/_search
+{
+  "query": {
+    "term": {
+      "status": "cancelled"
+    }
+  }
+}
+```
+
+Lister les vols où il pleut à l'arrivée ou au départ. Les vols avec de la pluie à l'arrivée devront sortir avant les autres.
+```bash
+GET /flights/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "term": { "weather_departure": "rain" } },
+        { "term": { "weather_arrival": "rain" } }
+      ]
+    }
+  },
+  "sort": [
+    { "weather_arrival": { "order": "desc" } }
+  ]
+}
+```
+
+Lister les vols partant d'Allemagne et à destination de France
+```bash
+GET /flights/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "term": { "departure_country": "Germany" } },
+        { "term": { "arrival_country": "France" } }
+      ]
+    }
+  }
+}
+```
+
+Lister les vols ayant eu lieu entre le 1er avril 2024 et le 20 mai 2024
+```bash
+GET /flights/_search
+{
+  "query": {
+    "range": {
+      "flight_date": {
+        "gte": "2024-04-01",
+        "lte": "2024-05-20"
+      }
+    }
+  }
+}
+```
+
+Les résultats de chaque requête montrent les documents correspondant aux critères définis. Par exemple, la première requête renvoie tous les vols dont le prix moyen est compris entre 300€ et 450€, affichant les détails de chaque vol répondant à ce critère.
